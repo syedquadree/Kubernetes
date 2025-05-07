@@ -1,55 +1,42 @@
-# Kubernetes installation using KubeAdm as like On-prem environment 
-# git link : https://github.com/syedquadree/Kubernetes
-# execute below commands on all nodes used for kubernetes cluster
-# pre-requistite 
-containerd:
+#Kops is nothing but kubernetes operations, there are many ways to deploy cluster. 
+# create the Management-server
+it is nothing specical where there is no need of login to master or worker node, so i am going to manage everythign from my 
+Management-server itself.
+just create the instance on AWS(t2.medium)
 
-cat > /etc/modules-load.d/containerd.conf <<EOF
-overlay
-br_netfilter
-EOF
+DNS name( i used the GoDaddy, purchase the DNS), once you create the Hosted zones in Route53, then you can see NameServer
+so integrate these Nameservers with Godaddy.
 
-modprobe overlay
-modprobe br_netfilter
+S3 Bucket--> to store the state( create S3 bucket in AWS)
 
-# Setup required sysctl params, these persist across reboots.
-cat > /etc/sysctl.d/99-kubernetes-cri.conf <<EOF
-net.bridge.bridge-nf-call-iptables  = 1
-net.ipv4.ip_forward                 = 1
-net.bridge.bridge-nf-call-ip6tables = 1
-EOF
+Create IAM role assign it to EC2(given admin access), and attach IAM role to EC2
+Generate the SSH key, so connect to EC2 and generate the SSH( KOPS will apply key to all the nodes)
+Command:  ssh-keygen
 
-sysctl --system
+Download kops and kubectl to usr/local/bin and change the permissions(chomd 777)
+url: kops github( wget and copy the latest releases)
 
-# Install containerd package on all nodes
-apt-get update && apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-add-apt-repository \
-    "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-    $(lsb_release -cs) \
-    stable"
-apt-get update && apt-get install -y containerd.io
-mkdir -p /etc/containerd
-containerd config default > /etc/containerd/config.toml
-sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
-systemctl restart containerd
-cat > /etc/crictl.yaml <<EOF
-runtime-endpoint: unix:///run/containerd/containerd.sock
-image-endpoint: unix:///run/containerd/containerd.sock
-timeout: 2
-EOF
-sudo apt-get update
-sudo apt-get install -y apt-transport-https ca-certificates curl
-sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
-echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
-sudo apt-get update
-sudo apt-get install -y kubelet kubeadm kubectl
-sudo apt-mark hold kubelet kubeadm kubectl
-kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/tigera-operator.yaml
-wget https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/custom-resources.yaml
-kubectl apply -f custom-resources.yaml
-mkdir -p $HOME/.kube
-sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-kubeadm init --apiserver-advertise-address=192.168.0.200 --cri-socket=/run/containerd/containerd.sock --pod-network-cidr=10.244.0.0/16
-kubeadm join 192.168.0.200:6443 --token p3h7k6.cn87756riyfqybjv \
-        --discovery-token-ca-cert-hash sha256:5d6bd8d7fd8a6a47995f2ba5ca18c7aaafabbea24caafd9f3baf0aab1afd0458
+#edit .bashrc and add the all env variables
+nano .bashrc
+export NAME=syedsinglife.shop
+export KOPS_STATE_STORE=s3://syedsinglife.shop
+export AWS_REGION=us-east-2
+export CLUSTER_NAME=syedsinglife.shop
+export EDITOR='/usr/bin/nano'
+#export K8S_VERSION=1.6.4
+once save the file, than source.bashrc
+
+# create the Cluster using KOPS 
+kops create cluster --name=syedsinglife.shop \
+--state=s3://syedsinglife.shop --zones=us-east-1a,us-east-1b \
+--node-count=2 --control-plane-count=1 --node-size=t3.medium --control-plane-size=t3.medium \
+--control-plane-zones=us-east-1a --control-plane-volume-size 10 --node-volume-size 10 \
+--ssh-public-key ~/.ssh/id_rsa.pub \
+--dns-zone=syedsinglife.shop --dry-run --output yaml
+
+Create the cluster using below command:
+kops create -f cluster.yaml
+
+kops update cluster --name syedsinglife.shop --yes --admin
+kops validate cluster --wait 10m
+kops delete -f cluster.yml  --yes
