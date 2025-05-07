@@ -40,3 +40,17 @@ kops create -f cluster.yaml
 kops update cluster --name syedsinglife.shop --yes --admin
 kops validate cluster --wait 10m
 kops delete -f cluster.yml  --yes
+
+#Smoke testing
+to get node info
+command: kubectl get nodes
+         kubectl get nodes --no-headers
+         kubectl cluster-info
+         kubectl get ns
+         kubectl get pods
+         kubectl get pods -o wide
+         kubectl get pods -n kube-system
+         kubectl get pods -n kube-system -o wide | grep -I api
+         kubectl get pods -n kube-system -o wide | grep -I etcd
+         kubectl get pods -n kube-system -o wide | grep -I control
+         kubectl get pods -n kube-system -o wide | grep -I scheduler
